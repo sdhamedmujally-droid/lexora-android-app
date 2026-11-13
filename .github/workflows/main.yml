@@ -1,135 +1,82 @@
+name: Build Lexora Android APK
 
-الاسم: بناء تطبيق Lexora لنظام Android (Capacitor)
-
-على:
-  دفع:
-    الفروع: [ "الرئيسي", "الرئيسي" ]
+on:
+  push:
+    branches: [ "main" ]
   workflow_dispatch:
 
-الأذونات:
-  المحتويات: اكتب
+permissions:
+  contents: write
 
-وظائف:
-  build-android-apk:
-    الاسم: إنشاء وتوقيع تطبيق Lexora APK
-    يعمل على: ubuntu-latest
+jobs:
+  build:
+    name: Build APK with Capacitor
+    runs-on: ubuntu-latest
 
-    خطوات:
-      - الاسم: 1. مستودع التحقق
-        يستخدم: actions/checkout@v4
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - الاسم: 2. إعداد Node.js 20
-        يستخدم: actions/setup-node@v4
-        مع:
-          إصدار العقدة: '20'
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - الاسم: 3. إعداد Java JDK 21 (مطلوب لـ Capacitor 6 و Android Gradle)
-        يستخدم: actions/setup-java@v4
-        مع:
-          التوزيع: 'temurin'
-          java-version: '21'
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-      - الاسم: 4. إعداد حزمة تطوير البرامج لنظام Android
-        يستخدم: android-actions/setup-android@v3
+      - name: Install Dependencies
+        run: npm install
 
-      - الاسم: 5. تجهيز أصول الويب (www/) وتثبيت كابيتور
-        تشغيل: |
-          mkdir -p www/assets
-          for f in index.html words_data.js lexora_extra_data.js sw.js manifest.webmanifest icon.svg icon-192.png icon-512.png; do
-            إذا كان الملف "$f" موجودًا، فقم بنسخه إلى www/؛
-          تم
-          إذا كان المجلد "assets" موجودًا، فقم بنسخ جميع الملفات الموجودة في المجلد "assets" إلى المجلد "www/assets/" باستخدام الأمر cp -rf assets/* أو إذا كان المجلد "assets/" موجودًا، فقم بإيقاف العملية.
-          إذا كان الملف "index-BjtQRK6-.js" موجودًا، فانسخه إلى www/assets/.
-          إذا كان الملف "index-W3zsysSI.css" موجودًا، فسيتم نسخه إلى www/assets/.
-          إذا لم يكن الملف "package.json" موجودًا،
-            cat << 'PKG_EOF' > package.json
-          {
-            "الاسم": "lexora-english-lab",
-            "الإصدار": "1.0.0",
-            "خاص": صحيح،
-            "التبعيات": {
-              "@capacitor-community/text-to-speech": "^6.0.0",
-              "@capacitor/android": "^6.0.0",
-              "@capacitor/app": "^6.0.0",
-              "@capacitor/core": "^6.0.0",
-              "@capacitor/status-bar": "^6.0.0"
-            },
-            "devDependencies": {
-              "@capacitor/assets": "^3.0.5",
-              "@capacitor/cli": "^6.0.0"
-            }
-          }
-          PKG_EOF
+      - name: Add and Sync Capacitor Android
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
           fi
-          إذا لم يكن الملف "capacitor.config.json" موجودًا، فسيتم تنفيذ ما يلي:
-            cat << 'CAP_EOF' > capacitor.config.json
-          {
-            "appId": "com.siddiq.lexora",
-            "اسم التطبيق": "مختبر ليكسورا للغة الإنجليزية"،
-            "webDir": "www",
-            "bundledWebRuntime": خطأ،
-            "server": {
-              "androidScheme": "https",
-              "cleartext": صحيح،
-              "allowNavigation": ["*"]
-            },
-            "android": {
-              "allowMixedContent": صحيح،
-              "captureInput": صحيح،
-              "webContentsDebuggingEnabled": صحيح
-            }
-          }
-          CAP_EOF
-          fi
-          تثبيت npm
+          npx cap sync android
 
-      - الاسم: 6. إضافة ومزامنة المكثف على منصة أندرويد
-        تشغيل: |
-          إذا لم يكن المجلد "android" موجودًا، فقم بما يلي:
-            إضافة غطاء npx لنظام Android
-          fi
-          مزامنة الالتقاط npx لنظام أندرويد
+      - name: Generate App Icons from SVG
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y librsvg2-bin
+          for item in "mdpi:48" "hdpi:72" "xhdpi:96" "xxhdpi:144" "xxxhdpi:192"; do
+            density=$(echo $item | cut -d: -f1)
+            size=$(echo $item | cut -d: -f2)
+            target="android/app/src/main/res/mipmap-$density"
+            mkdir -p "$target"
+            rsvg-convert -w "$size" -h "$size" www/icon.svg -o "$target/ic_launcher.png"
+            cp "$target/ic_launcher.png" "$target/ic_launcher_round.png"
+            cp "$target/ic_launcher.png" "$target/ic_launcher_foreground.png"
+          done
 
-      - الاسم: 7. إنشاء أيقونات التطبيق وتكوين أذونات عرض الويب لنظام Android
-        تشغيل: |
-          إذا كان الملف "icon-512.png" موجودًا، فقم بما يلي:
-            mkdir -p assets-src
-            cp -f icon-512.png assets-src/icon.png
-            cp -f icon-512.png assets-src/splash.png
-            npx capacitor-assets generate --android --assetPath assets-src || true
-          fi
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          إذا كان الملف "$MANIFEST" موجودًا، فسيتم تنفيذ ما يلي:
-            إذا لم يتم العثور على عبارة "usesCleartextTraffic" في ملف البيان ($MANIFEST)؛
-              sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' "$MANIFEST"
-            fi
-          fi
-          MAIN_ACT=$(find android/app/src/main/java -name "MainActivity.java" | head -n 1)
-          إذا كان [ -n "$MAIN_ACT" ] && [ -f "$MAIN_ACT" ];
-            printf '%s
-' 'package com.siddiq.lexora;' 'import android.os.Bundle;' 'import android.webkit.WebSettings;' 'import android.webkit.WebView;' 'import com.getcapacitor.BridgeActivity;' 'public class MainActivity extends BridgeActivity {' ' @Override' ' public void onCreate(Bundle savedInstanceState) {' ' super.onCreate(savedInstanceState);' ' try {' ' WebView webView = this.bridge.getWebView();' ' if (webView != null) {' ' WebSettings settings = webView.getSettings();' ' settings.setMediaPlaybackRequiresUserGesture(false);' ' settings.setDomStorageEnabled(true);' ' settings.setDatabaseEnabled(true);' ' settings.setJavaScriptEnabled(true);' ' settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);' ' }' ' } catch (Exception ignored) {}' ' }' '}' > "$MAIN_ACT"
-          fi
-
-      - الاسم: 8. إنشاء ملف APK موقّع وجاهز للتثبيت باستخدام Gradle
-        تشغيل: |
+      - name: Build Android Debug APK
+        run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
-          mkdir -p ../apk-output
-          cp app/build/outputs/apk/debug/app-debug.apk ../apk-output/Lexora-English-Lab.apk
+          ./gradlew assembleDebug --no-daemon
 
-      - الاسم: 9. تحميل ملف APK جاهز للتثبيت إلى GitHub Actions Artifacts
-        يستخدم: actions/upload-artifact@v4
-        مع:
-          الاسم: Lexora-English-Lab-APK
-          المسار: apk-output/*.apk
-          إذا لم يتم العثور على ملفات: خطأ
+      - name: Prepare Output APK
+        run: |
+          mkdir -p release-output
+          cp android/app/build/outputs/apk/debug/app-debug.apk release-output/Lexora-English-Lab.apk
 
-      - الاسم: 10. نشر ملف APK على إصدارات GitHub
-        يستخدم: softprops/action-gh-release@v2
-        إذا كان اسم الحدث على GitHub هو 'push' أو 'workflow_dispatch'
-        مع:
-          tag_name: v1.0.${{ github.run_number }}
-          الاسم: "Lexora English Lab APK (Build #${{ github.run_number }})"
-          body: "نسخة تطبيق الأندرويد اليابانية للتثبيت المباشر على الهاتف (Lexora-English-Lab.apk)"
-          الملفات: apk-output/*.apk
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lexora-English-Lab-APK
+          path: release-output/Lexora-English-Lab.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v1.0.${{ github.run_number }}"
+          name: "Lexora English Lab v1.0.${{ github.run_number }}"
+          files: release-output/Lexora-English-Lab.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
